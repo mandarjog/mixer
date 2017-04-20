@@ -141,8 +141,46 @@ func resolve(bag attribute.Bag, kindSet KindSet, rules map[rulesKey]*pb.ServiceC
 	dlist = make([]*pb.Combined, 0, resolveSize)
 	dlistout := make([]*pb.Combined, 0, resolveSize)
 
+	// we know which scopes apply
+	// for identityAttribute == svc1.ns.svc.cluster.local
+	// scopes = [ svc.cluster.local ns.svc.cluster.local svc1.ns.svc.cluster.local ]
+	// foreach scope consult rules documents paired with all potential subjects
+	// For the above name, we consult these 6 documents with key = {scope, subject}
+	// scope                            subject
+	// --------------------------------------------------------
+	// svc.cluster.local                svc.cluster.local
+	// svc.cluster.local                ns.svc.cluster.local
+	// svc.cluster.local                svc1.ns.svc.cluster.local
+
+	// ns.svc.cluster.local             ns.svc.cluster.local
+	// ns.svc.cluster.local             svc1.ns.svc.cluster.local
+	//
+	// svc1.ns.svc.cluster.local        svc1.ns.svc.cluster.local
+
+	// Within a scope - most specific subject wins
+	// 1. Resolve every paired document
+	// 2. For every "resolved" aspect, keep the aspect produced by most specific subject.
+	//    - this means if {cluster, cluster}  -->  MetricsAAA  and
+	//                    {cluster, svc1}     -->  MetricsBBB
+	// We conclude that scope = cluster resolved the Metrics aspect to MetricsBBB since subject
+	// svc1.ns.svc.cluster.local is more specific than svc.cluster.local
+	//
+	// Let's say that scopes resulted in the following resolutions
+	// scope=cluster --> MetricsBBB
+	// scope=namespace --> MetricsAAA
+	// scope=svc1      --> MetricsCCC
+	//
+	// this list is sent to the aspect combine function.
+	// Metrics.Combine([MetricsBBB, MetricsAAA, MetricsCCC])  --> [MetricsBBB, MetricsCCC]
+	// Those 2 metrics are finally dispatched.
+	//
+	// For ratelimit aspect, the combine step should choose the numerically smallest limits
+	// if dimensions are the same.
+
+
 	for idx := 0; idx < len(scopes); idx++ {
 		scope := scopes[idx]
+		// amap maps[kinds] --> []*pb.Combined
 		amap := make(map[string][]*pb.Combined)
 
 		for j := idx; j < len(scopes); j++ {
@@ -157,20 +195,24 @@ func resolve(bag attribute.Bag, kindSet KindSet, rules map[rulesKey]*pb.ServiceC
 			if dlist, err = resolveRules(bag, kindSet, rule.GetRules(), "/", dlist, onlyEmptySelectors, strictSelectorEval); err != nil {
 				return dlist, err
 			}
-
+			// contains per aspect resolution of {scope, subject}
 			aamap := make(map[string][]*pb.Combined)
 
 			for _, d := range dlist {
 				aamap[d.Aspect.Kind] = append(aamap[d.Aspect.Kind], d)
 			}
 
-			// more specific subject replaces
+			// resolutions from more specific subject replaces the previous resolution of
+			// the same aspect
 			for k, v := range aamap {
 				amap[k] = v
 			}
 		}
 		// collapse from amap
+		// TODO 1. remove duplicates
+		// TODO 2. delegate to aspect specific combine code
 		for _, v := range amap {
+			// v = aspect.Combine(v)
 			dlistout = append(dlistout, v...)
 		}
 	}
