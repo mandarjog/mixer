@@ -1,11 +1,13 @@
 types:
-- name: ratelimit_by_service_by_consumer
+- template: istio.mixer.config.quota.Template
+  name: ratelimit_by_service_by_consumer
   dimensions:
     service: STRING
     consumer: STRING
   maxAmount: 500
   expiration: 1s
-- name: ratelimit_by_service_by_datacenter
+- template: istio.mixer.config.quota.Template
+  name: ratelimit_by_service_by_datacenter
   dimensions:
     service: STRING
     datacenter: STRING
