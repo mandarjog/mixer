@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package redisQuota;
+
+message Config {
+    string redis_url = 1;
+}

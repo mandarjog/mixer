@@ -1,0 +1,43 @@
+types:
+- name: ratelimit_by_service_by_consumer
+  dimensions:
+    service: STRING
+    consumer: STRING
+  maxAmount: 500
+  expiration: 1s
+- name: ratelimit_by_service_by_datacenter
+  dimensions:
+    service: STRING
+    datacenter: STRING
+  maxAmount: 10000
+  expiration: 1s
+
+contructors:
+- name: rl_by_service_by_consumer
+  type: ratelimit_by_service_by_consumer
+  dimensions:
+    service: target.labels["app"]
+    consumer: source.labels["app"]
+- name: rl_by_service_by_datacenter
+  type: ratelimit_by_service_by_datacenter
+  dimensions:
+    service: target.labels["app"]
+    datacenter: "us-west-5b"
+
+actions:
+- selector: *
+  handler: redisQuotaLocal
+  request_args:
+  - rl_by_service_by_consumer
+  # only apply per datacenter limits if from a different
+  # datacenter
+- selector: source.labels["datacenter"] != target.labels["datacenter"]
+  handler: redisQuotaLocal
+  request_args:
+  - rl_by_service_by_datacenter
+
+# meshops
+handlers:
+- name: redisQuotaLocal
+  adapter: redisQuota
+  redisURL: redis://localhost:9789/2

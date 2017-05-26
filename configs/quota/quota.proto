@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package quota;
+
+package istio.mixer.config;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/descriptor.proto";
+
+
+// Modeled on QuotaDescriptor
+// All fields except 
+message Template{
+  // name is a required field for all templates.
+  string name = 1;
+
+  // The set of dimensions that are necessary to describe a specific value cell
+  // for a quota of this type.
+  map<string, ValueType> dimensions = 2; [(istio.mixer.config.request_arg) = true];
+
+
+  // The following fields are config only.
+  // They are only used if quota configuration is done inside Mixer.
+
+  // The default imposed maximum amount for values of this quota.
+  int64 max_amount = 5;
+
+  // The amount of time allocated quota remains valid before it is
+  // automatically released. If this is 0, then allocated quota is
+  // not automatically released.
+  google.protobuf.Duration expiration = 6;
+}
+
+
+
+extend google.protobuf.FieldOptions {
+	// fields decorated with request_args are available on the request path.
+	bool request_arg = 72295728;
+}
+
+
+// Quota values are managed by the quota server
+// This configuration will only be used to generate calls to the quota server
+message AlternateTemplate{
+  // name is a required field for all templates.
+  string name = 1;
+
+  // The set of dimensions that are necessary to describe a specific value cell
+  // for a quota of this type.
+  map<string, ValueType> dimensions = 2; [(istio.mixer.config.request_arg) = true];
+}
+
+
